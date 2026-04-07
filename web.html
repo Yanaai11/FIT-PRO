@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FitLife Pro - Smart Lock Schedule</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap");
+
+      :root {
+        --primary: #3b82f6;
+        --accent: #60a5fa;
+        --dark-bg: #0f172a;
+      }
+
+      body {
+        font-family: "Plus Jakarta Sans", sans-serif;
+        background-color: #0b0f1a;
+        color: #e2e8f0;
+        overflow-x: hidden;
+      }
+
+      .font-orbitron {
+        font-family: "Orbitron", sans-serif;
+      }
+
+      .glass-card {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(51, 65, 85, 0.5);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      /* Locked State */
+      .day-locked {
+        filter: grayscale(0.8) opacity(0.5);
+        pointer-events: none;
+        position: relative;
+      }
+
+      .day-locked::after {
+        content: "\f023";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        color: rgba(255, 255, 255, 0.3);
+        font-size: 1.25rem;
+      }
+
+      /* Active Day State */
+      .day-active {
+        border: 2px solid var(--primary);
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+        transform: scale(1.02);
+        background: rgba(30, 41, 59, 0.9);
+        filter: none !important;
+        opacity: 1 !important;
+      }
+
+      .checkbox-custom {
+        width: 26px;
+        height: 26px;
+        cursor: pointer;
+        accent-color: var(--primary);
+        border-radius: 6px;
+      }
+
+      .completed-text {
+        text-decoration: line-through;
+        color: #64748b;
+      }
+
+      .progress-glow {
+        box-shadow: 0 0 10px var(--primary);
+      }
+
+      /* Custom Scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0f172a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 10px;
+      }
+
+      @keyframes pulse-border {
+        0% {
+          border-color: rgba(59, 130, 246, 0.5);
+        }
+        50% {
+          border-color: rgba(59, 130, 246, 1);
+        }
+        100% {
+          border-color: rgba(59, 130, 246, 0.5);
+        }
+      }
+      .pulse-active {
+        animation: pulse-border 2s infinite;
+      }
+
+      /* Animation for Modal */
+      .modal-enter {
+        animation: modalFadeIn 0.3s ease-out forwards;
+      }
+      @keyframes modalFadeIn {
+        from {
+          opacity: 0;
+          transform: scale(0.9) translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
+      }
+    </style>
+  </head>
+  <body class="min-h-screen pb-12">
+    <!-- Navbar -->
+    <nav
+      class="sticky top-0 z-50 bg-[#0b0f1a]/80 backdrop-blur-xl border-b border-slate-800"
+    >
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-20">
+          <div class="flex items-center gap-3">
+            <div
+              class="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-900/20"
+            >
+              <i class="fas fa-bolt text-white text-xl"></i>
+            </div>
+            <div>
+              <span
+                class="text-2xl font-bold tracking-tighter text-white font-orbitron"
+                >FIT<span class="text-blue-500">PRO</span></span
+              >
+              <p
+                class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold"
+              >
+                Elite Performance
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-6">
+            <div class="hidden md:block text-right">
+              <div class="text-[10px] text-slate-400 uppercase font-bold mb-1">
+                Global Mastery
+              </div>
+              <div class="w-40 bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div
+                  id="global-progress-bar"
+                  class="bg-blue-500 h-full w-0 transition-all duration-700 progress-glow"
+                ></div>
+              </div>
+            </div>
+            <div
+              id="current-day-badge"
+              class="bg-blue-600/20 text-blue-400 px-4 py-1.5 rounded-full border border-blue-500/30 font-bold text-sm"
+            >
+              Loading...
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 pt-8 sm:px-6 lg:px-8">
+      <!-- Welcome Hero -->
+      <header
+        class="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6"
+      >
+        <div class="max-w-2xl">
+          <h1
+            class="text-4xl md:text-5xl font-extrabold text-white mb-4 leading-tight"
+          >
+            TARGET HARI INI:
+            <span id="today-focus-text" class="text-blue-500">...</span>
+          </h1>
+          <p class="text-slate-400 text-lg">
+            Hanya jadwal hari ini yang dapat diakses. Selesaikan misi Anda
+            sebelum hari berganti.
+          </p>
+        </div>
+        <div
+          class="bg-slate-900/50 p-4 rounded-2xl border border-slate-800 flex items-center gap-4"
+        >
+          <i class="fas fa-calendar-day text-3xl text-blue-500"></i>
+          <div>
+            <div class="text-xs text-slate-500 uppercase font-bold">
+              Tanggal Sekarang
+            </div>
+            <div id="full-date" class="text-white font-bold">-- --- ----</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Grid Layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <!-- Left: Locked Weekly Schedule -->
+        <div class="lg:col-span-8 space-y-6">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xl font-bold font-orbitron flex items-center gap-3">
+              <i class="fas fa-list-check text-blue-500"></i> TIMELINE MINGGUAN
+            </h2>
+          </div>
+
+          <div id="schedule-container" class="space-y-6">
+            <!-- Days will be generated by JS -->
+          </div>
+        </div>
+
+        <!-- Right: Exercise Vault -->
+        <div class="lg:col-span-4 space-y-6">
+          <div
+            class="glass-card rounded-3xl p-6 sticky top-28 border-blue-500/10"
+          >
+            <h3
+              class="font-bold text-xl mb-6 font-orbitron flex items-center gap-3 text-white"
+            >
+              <i class="fas fa-dumbbell text-blue-500"></i> VAULT LATIHAN
+            </h3>
+
+            <!-- Filters -->
+            <div class="flex flex-wrap gap-2 mb-6">
+              <button
+                onclick="filterVault('Semua')"
+                class="v-btn active bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all"
+              >
+                Semua
+              </button>
+              <button
+                onclick="filterVault('Beban')"
+                class="v-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-slate-700"
+              >
+                Beban
+              </button>
+              <button
+                onclick="filterVault('Kardio')"
+                class="v-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-slate-700"
+              >
+                Kardio
+              </button>
+              <button
+                onclick="filterVault('HIIT')"
+                class="v-btn bg-slate-800 text-slate-400 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-slate-700"
+              >
+                HIIT
+              </button>
+            </div>
+
+            <!-- Library Items -->
+            <div
+              id="vault-items"
+              class="space-y-4 max-h-[600px] overflow-y-auto pr-2"
+            >
+              <!-- Items injected by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modal Exercise Detail -->
+    <div
+      id="exercise-modal"
+      class="fixed inset-0 z-[101] hidden flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md"
+    >
+      <div
+        id="modal-content"
+        class="bg-slate-900 border border-slate-700 rounded-[2.5rem] max-w-lg w-full overflow-hidden modal-enter shadow-2xl"
+      >
+        <!-- Content Injected by JS -->
+      </div>
+    </div>
+
+    <!-- Modal Success -->
+    <div
+      id="finish-modal"
+      class="fixed inset-0 z-[100] hidden flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-sm"
+    >
+      <div
+        class="bg-slate-900 border border-blue-500/30 p-8 rounded-[2rem] max-w-md w-full text-center shadow-2xl"
+      >
+        <div
+          class="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl shadow-[0_0_30px_rgba(59,130,246,0.5)]"
+        >
+          <i class="fas fa-trophy text-white"></i>
+        </div>
+        <h2 class="text-3xl font-orbitron font-bold text-white mb-2">
+          MISI SELESAI!
+        </h2>
+        <p class="text-slate-400 mb-8 italic">
+          "Satu langkah lebih dekat ke versi terbaik dirimu."
+        </p>
+        <button
+          onclick="
+            document.getElementById('finish-modal').classList.add('hidden')
+          "
+          class="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl transition-all font-orbitron tracking-widest"
+        >
+          LANJUTKAN
+        </button>
+      </div>
+    </div>
+
+    <script>
+      const DAYS = [
+        "Minggu",
+        "Senin",
+        "Selasa",
+        "Rabu",
+        "Kamis",
+        "Jumat",
+        "Sabtu",
+      ];
+      const todayIndex = new Date().getDay();
+      const todayName = DAYS[todayIndex];
+
+      // Core Weekly Schedule
+      const weeklyData = [
+        {
+          day: "Senin",
+          focus: "Push Day (Dada, Bahu, Triceps)",
+          icon: "fa-arrow-up-from-bracket",
+          tasks: [
+            {
+              id: "mon1",
+              name: "Barbell Bench Press",
+              detail: "4 Set x 10 Reps",
+            },
+            { id: "mon2", name: "Overhead Press", detail: "3 Set x 12 Reps" },
+            { id: "mon3", name: "Skull Crushers", detail: "3 Set x 15 Reps" },
+            { id: "mon4", name: "Chest Dips", detail: "Max Reps" },
+          ],
+        },
+        {
+          day: "Selasa",
+          focus: "Pull Day (Punggung & Biceps)",
+          icon: "fa-weight-hanging",
+          tasks: [
+            { id: "tue1", name: "Deadlift", detail: "3 Set x 5 Reps" },
+            { id: "tue2", name: "Pull Ups", detail: "4 Set x 8 Reps" },
+            { id: "tue3", name: "Barbell Rows", detail: "3 Set x 12 Reps" },
+            { id: "tue4", name: "Hammer Curls", detail: "3 Set x 15 Reps" },
+          ],
+        },
+        {
+          day: "Rabu",
+          focus: "Leg Day (Paha, Betis, Core)",
+          icon: "fa-person-walking",
+          tasks: [
+            { id: "wed1", name: "Back Squats", detail: "4 Set x 10 Reps" },
+            { id: "wed2", name: "Leg Press", detail: "3 Set x 12 Reps" },
+            {
+              id: "wed3",
+              name: "Romanian Deadlift",
+              detail: "3 Set x 12 Reps",
+            },
+            {
+              id: "wed4",
+              name: "Hanging Leg Raise",
+              detail: "3 Set x 20 Reps",
+            },
+          ],
+        },
+        {
+          day: "Kamis",
+          focus: "Active Recovery & Cardio",
+          icon: "fa-heart-pulse",
+          tasks: [
+            { id: "thu1", name: "Lari Jarak Menengah", detail: "30-45 Menit" },
+            { id: "thu2", name: "Dynamic Stretching", detail: "15 Menit" },
+          ],
+        },
+        {
+          day: "Jumat",
+          focus: "Hypertrophy Upper Body",
+          icon: "fa-dumbbell",
+          tasks: [
+            { id: "fri1", name: "Incline DB Press", detail: "4 Set x 12 Reps" },
+            { id: "fri2", name: "Lat Pulldowns", detail: "4 Set x 12 Reps" },
+            { id: "fri3", name: "Lateral Raises", detail: "4 Set x 20 Reps" },
+            { id: "fri4", name: "Cable Curls", detail: "3 Set x 15 Reps" },
+          ],
+        },
+        {
+          day: "Sabtu",
+          focus: "Full Body Blast / HIIT",
+          icon: "fa-fire",
+          tasks: [
+            { id: "sat1", name: "Burpees", detail: "5 Set x 15 Reps" },
+            {
+              id: "sat2",
+              name: "Kettlebell Swings",
+              detail: "4 Set x 20 Reps",
+            },
+            { id: "sat3", name: "Thrusters", detail: "3 Set x 12 Reps" },
+            {
+              id: "sat4",
+              name: "Mountain Climbers",
+              detail: "3 Set x 1 Menit",
+            },
+          ],
+        },
+        {
+          day: "Minggu",
+          focus: "Mobility & Rest",
+          icon: "fa-leaf",
+          tasks: [
+            { id: "sun1", name: "Yoga Full Flow", detail: "60 Menit" },
+            { id: "sun2", name: "Deep Foam Rolling", detail: "20 Menit" },
+          ],
+        },
+      ];
+
+      // Interactive Vault Library
+      const exerciseLibrary = [
+        {
+          id: "v1",
+          name: "Bench Press",
+          cat: "Beban",
+          level: "PRO",
+          desc: "Gerakan komposit utama untuk membangun massa otot dada dan kekuatan dorong.",
+          stats: { cals: "150", time: "20m", target: "Dada" },
+          instruction:
+            "Jaga punggung tetap menempel pada bench, turunkan bar hingga hampir menyentuh dada, dorong eksplosif.",
+        },
+        {
+          id: "v2",
+          name: "Deadlift",
+          cat: "Beban",
+          level: "ELITE",
+          desc: "Raja dari semua latihan beban. Mengaktifkan hampir seluruh otot tubuh.",
+          stats: { cals: "300", time: "15m", target: "Punggung/Kaki" },
+          instruction:
+            "Gunakan punggung yang netral, dorong dengan kaki, jangan tarik dengan lengan.",
+        },
+        {
+          id: "v3",
+          name: "Burpees",
+          cat: "HIIT",
+          level: "HARD",
+          desc: "Latihan pembakar lemak paling efisien yang menggabungkan squat, push-up, dan lompat.",
+          stats: { cals: "200", time: "10m", target: "Full Body" },
+          instruction:
+            "Lakukan dengan ritme konsisten tanpa istirahat panjang di antara repetisi.",
+        },
+        {
+          id: "v4",
+          name: "Sprint",
+          cat: "Kardio",
+          level: "HARD",
+          desc: "Lari kecepatan penuh untuk meningkatkan metabolisme dan kesehatan jantung.",
+          stats: { cals: "250", time: "15m", target: "Kardio/Kaki" },
+          instruction:
+            "Lakukan interval 30 detik sprint dan 60 detik jalan santai.",
+        },
+        {
+          id: "v5",
+          name: "Battle Ropes",
+          cat: "HIIT",
+          level: "PRO",
+          desc: "Membangun daya tahan otot dan koordinasi menggunakan tali berat.",
+          stats: { cals: "180", time: "12m", target: "Bahu/Lengan" },
+          instruction:
+            "Jaga posisi tubuh tetap rendah (setengah squat) dan gerakan tangan secara bergelombang.",
+        },
+        {
+          id: "v6",
+          name: "Clean & Jerk",
+          cat: "Beban",
+          level: "ELITE",
+          desc: "Angkatan Olimpiade yang membutuhkan koordinasi, kecepatan, dan tenaga eksplosif.",
+          stats: { cals: "280", time: "15m", target: "Explosive" },
+          instruction:
+            "Fokus pada transisi yang mulus antara menarik bar ke bahu dan mendorongnya ke atas kepala.",
+        },
+        {
+          id: "v7",
+          name: "Boxing",
+          cat: "Kardio",
+          level: "HARD",
+          desc: "Latihan fisik dan mental yang luar biasa untuk kelincahan dan kekuatan.",
+          stats: { cals: "400", time: "30m", target: "Endurance" },
+          instruction:
+            "Jaga tangan tetap di atas (guard) dan gerakkan kaki secara konstan.",
+        },
+        {
+          id: "v8",
+          name: "Pistol Squat",
+          cat: "Beban",
+          level: "PRO",
+          desc: "Squat satu kaki yang menunjukkan keseimbangan tingkat tinggi dan kekuatan kaki murni.",
+          stats: { cals: "100", time: "10m", target: "Balance/Kaki" },
+          instruction:
+            "Satu kaki lurus ke depan, turunkan badan perlahan hingga pinggul di bawah lutut.",
+        },
+      ];
+
+      // State Management
+      let completedIds = JSON.parse(
+        localStorage.getItem("fitpro_completed") || "[]",
+      );
+      let customTasks = JSON.parse(
+        localStorage.getItem("fitpro_custom_tasks") || "{}",
+      );
+
+      function init() {
+        renderSchedule();
+        renderVault();
+        updateDates();
+        updateGlobalProgress();
+      }
+
+      function updateDates() {
+        const now = new Date();
+        document.getElementById("current-day-badge").innerText =
+          `HARI INI: ${todayName.toUpperCase()}`;
+        document.getElementById("full-date").innerText = now.toLocaleDateString(
+          "id-ID",
+          { day: "numeric", month: "long", year: "numeric" },
+        );
+
+        const todayPlan = weeklyData.find((d) => d.day === todayName);
+        document.getElementById("today-focus-text").innerText = todayPlan
+          ? todayPlan.focus
+          : "ISTIRAHAT";
+      }
+
+      function renderSchedule() {
+        const container = document.getElementById("schedule-container");
+        container.innerHTML = "";
+
+        weeklyData.forEach((plan) => {
+          const isToday = plan.day === todayName;
+
+          // Combine original tasks with custom added tasks for this day
+          const currentDayTasks = [
+            ...plan.tasks,
+            ...(customTasks[plan.day] || []),
+          ];
+
+          const tasksDone = currentDayTasks.filter((t) =>
+            completedIds.includes(t.id),
+          ).length;
+          const totalTasks = currentDayTasks.length;
+          const progress = totalTasks > 0 ? (tasksDone / totalTasks) * 100 : 0;
+
+          const dayEl = document.createElement("div");
+          dayEl.className = `glass-card rounded-[2rem] p-6 shadow-xl ${isToday ? "day-active pulse-active" : "day-locked"}`;
+
+          dayEl.innerHTML = `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                        <div class="flex items-center gap-5">
+                            <div class="w-16 h-16 rounded-2xl ${isToday ? "bg-blue-600 shadow-[0_0_15px_rgba(59,130,246,0.5)]" : "bg-slate-800"} text-white flex items-center justify-center text-2xl">
+                                <i class="fas ${plan.icon}"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-2xl font-bold font-orbitron text-white">${plan.day}</h3>
+                                <p class="text-blue-400 font-semibold text-sm tracking-wide uppercase">${plan.focus}</p>
+                            </div>
+                        </div>
+                        <div class="bg-slate-950/50 px-4 py-2 rounded-xl flex items-center gap-3">
+                            <div class="text-right">
+                                <div class="text-[10px] text-slate-500 font-bold uppercase">Progres</div>
+                                <div class="text-white font-bold text-sm">${tasksDone}/${totalTasks}</div>
+                            </div>
+                            <div class="w-16 bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div class="bg-blue-500 h-full transition-all duration-500" style="width: ${progress}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${currentDayTasks
+                          .map((task) => {
+                            const isDone = completedIds.includes(task.id);
+                            const isCustom = task.id.startsWith("vault_");
+                            return `
+                                <div class="flex items-center gap-4 p-4 rounded-2xl bg-slate-800/40 border ${isCustom ? "border-blue-500/30 shadow-[inset_0_0_10px_rgba(59,130,246,0.1)]" : "border-slate-700/50"} hover:bg-slate-800 transition-all cursor-pointer group" onclick="toggleTask('${task.id}', ${isToday})">
+                                    <div class="relative flex items-center justify-center">
+                                        <input type="checkbox" ${isDone ? "checked" : ""} class="checkbox-custom z-10 opacity-0 absolute inset-0 cursor-pointer">
+                                        <div class="w-6 h-6 border-2 ${isDone ? "bg-blue-600 border-blue-600" : "border-slate-600"} rounded-md flex items-center justify-center transition-all">
+                                            ${isDone ? '<i class="fas fa-check text-white text-[10px]"></i>' : ""}
+                                        </div>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-sm ${isDone ? "completed-text" : "text-white"} group-hover:text-blue-400 transition-colors flex items-center gap-2">
+                                            ${task.name}
+                                            ${isCustom ? '<i class="fas fa-plus-circle text-[10px] text-blue-400"></i>' : ""}
+                                        </div>
+                                        <div class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">${task.detail}</div>
+                                    </div>
+                                    ${
+                                      isCustom && isToday
+                                        ? `
+                                        <button onclick="event.stopPropagation(); removeCustomTask('${task.id}')" class="text-slate-600 hover:text-red-500 p-1">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    `
+                                        : ""
+                                    }
+                                </div>
+                            `;
+                          })
+                          .join("")}
+                        ${currentDayTasks.length === 0 ? '<p class="text-slate-600 italic text-sm py-2">Tidak ada jadwal hari ini.</p>' : ""}
+                    </div>
+                `;
+          container.appendChild(dayEl);
+        });
+      }
+
+      function toggleTask(id, isToday) {
+        if (!isToday) return;
+
+        if (completedIds.includes(id)) {
+          completedIds = completedIds.filter((cid) => cid !== id);
+        } else {
+          completedIds.push(id);
+          checkTodayCompletion();
+        }
+
+        localStorage.setItem("fitpro_completed", JSON.stringify(completedIds));
+        renderSchedule();
+        updateGlobalProgress();
+      }
+
+      function checkTodayCompletion() {
+        const todayPlan = weeklyData.find((d) => d.day === todayName);
+        const currentDayTasks = [
+          ...todayPlan.tasks,
+          ...(customTasks[todayName] || []),
+        ];
+
+        const allDone =
+          currentDayTasks.length > 0 &&
+          currentDayTasks.every((t) => completedIds.includes(t.id));
+        if (allDone) {
+          document.getElementById("finish-modal").classList.remove("hidden");
+        }
+      }
+
+      function renderVault(items = exerciseLibrary) {
+        const container = document.getElementById("vault-items");
+        container.innerHTML = "";
+
+        items.forEach((ex) => {
+          const div = document.createElement("div");
+          div.className =
+            "bg-slate-800/30 border border-slate-700 p-4 rounded-2xl hover:border-blue-500/50 transition-all group cursor-pointer";
+          div.onclick = () => showExerciseDetail(ex.id);
+          div.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="text-[9px] px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 font-bold uppercase tracking-widest border border-blue-500/20">${ex.cat}</span>
+                        <span class="text-[9px] font-orbitron text-slate-500">${ex.level}</span>
+                    </div>
+                    <h4 class="text-white font-bold group-hover:text-blue-400 transition-colors">${ex.name}</h4>
+                    <p class="text-[10px] text-slate-500 mt-1 line-clamp-1">${ex.desc}</p>
+                    <div class="mt-3 flex items-center justify-between">
+                        <div class="flex gap-2">
+                             <div class="text-[9px] text-slate-400 flex items-center gap-1"><i class="fas fa-fire text-orange-500"></i> ${ex.stats.cals}kcal</div>
+                             <div class="text-[9px] text-slate-400 flex items-center gap-1"><i class="fas fa-clock"></i> ${ex.stats.time}</div>
+                        </div>
+                        <i class="fas fa-chevron-right text-slate-600 group-hover:text-blue-500 transition-transform group-hover:translate-x-1"></i>
+                    </div>
+                `;
+          container.appendChild(div);
+        });
+      }
+
+      function showExerciseDetail(id) {
+        const ex = exerciseLibrary.find((e) => e.id === id);
+        const modal = document.getElementById("exercise-modal");
+        const content = document.getElementById("modal-content");
+
+        content.innerHTML = `
+                <div class="relative h-48 bg-gradient-to-br from-blue-900 to-slate-900 flex items-center justify-center overflow-hidden">
+                    <div class="absolute inset-0 bg-blue-600/10 mix-blend-overlay"></div>
+                    <i class="fas fa-dumbbell text-7xl text-white/10 absolute -right-4 -bottom-4 rotate-12"></i>
+                    <div class="text-center z-10">
+                        <span class="bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">${ex.cat}</span>
+                        <h2 class="text-3xl font-orbitron font-bold text-white mt-2">${ex.name}</h2>
+                    </div>
+                    <button onclick="closeModal()" class="absolute top-4 right-4 text-white/50 hover:text-white text-xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="p-8">
+                    <div class="grid grid-cols-3 gap-4 mb-8">
+                        <div class="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 text-center">
+                            <div class="text-blue-400 text-lg mb-1"><i class="fas fa-fire"></i></div>
+                            <div class="text-white font-bold">${ex.stats.cals}</div>
+                            <div class="text-[9px] text-slate-500 uppercase font-bold">Kcal</div>
+                        </div>
+                        <div class="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 text-center">
+                            <div class="text-blue-400 text-lg mb-1"><i class="fas fa-clock"></i></div>
+                            <div class="text-white font-bold">${ex.stats.time}</div>
+                            <div class="text-[9px] text-slate-500 uppercase font-bold">Durasi</div>
+                        </div>
+                        <div class="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 text-center">
+                            <div class="text-blue-400 text-lg mb-1"><i class="fas fa-bullseye"></i></div>
+                            <div class="text-white font-bold text-[10px] uppercase">${ex.stats.target}</div>
+                            <div class="text-[9px] text-slate-500 uppercase font-bold">Target</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-6 mb-8">
+                        <div>
+                            <h4 class="text-blue-500 font-bold text-xs uppercase tracking-widest mb-2">Deskripsi</h4>
+                            <p class="text-slate-300 text-sm leading-relaxed">${ex.desc}</p>
+                        </div>
+                        <div>
+                            <h4 class="text-blue-500 font-bold text-xs uppercase tracking-widest mb-2">Instruksi Profesional</h4>
+                            <div class="bg-slate-800/50 border-l-4 border-blue-600 p-4 rounded-r-xl italic text-slate-400 text-sm">
+                                "${ex.instruction}"
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-4">
+                        <button onclick="addToToday('${ex.id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl transition-all font-orbitron tracking-widest text-sm flex items-center justify-center gap-3">
+                            <i class="fas fa-plus"></i> TAMBAH KE HARI INI
+                        </button>
+                    </div>
+                </div>
+            `;
+
+        modal.classList.remove("hidden");
+      }
+
+      function closeModal() {
+        document.getElementById("exercise-modal").classList.add("hidden");
+      }
+
+      function addToToday(exId) {
+        const ex = exerciseLibrary.find((e) => e.id === exId);
+
+        if (!customTasks[todayName]) customTasks[todayName] = [];
+
+        // Prevent duplicate
+        const taskId = `vault_${ex.id}`;
+        if (customTasks[todayName].some((t) => t.id === taskId)) {
+          closeModal();
+          return;
+        }
+
+        customTasks[todayName].push({
+          id: taskId,
+          name: ex.name,
+          detail: `Vault: ${ex.stats.time} ${ex.cat}`,
+        });
+
+        localStorage.setItem(
+          "fitpro_custom_tasks",
+          JSON.stringify(customTasks),
+        );
+        renderSchedule();
+        updateGlobalProgress();
+        closeModal();
+      }
+
+      function removeCustomTask(taskId) {
+        if (customTasks[todayName]) {
+          customTasks[todayName] = customTasks[todayName].filter(
+            (t) => t.id !== taskId,
+          );
+          completedIds = completedIds.filter((id) => id !== taskId);
+
+          localStorage.setItem(
+            "fitpro_custom_tasks",
+            JSON.stringify(customTasks),
+          );
+          localStorage.setItem(
+            "fitpro_completed",
+            JSON.stringify(completedIds),
+          );
+          renderSchedule();
+          updateGlobalProgress();
+        }
+      }
+
+      function filterVault(cat) {
+        const btns = document.querySelectorAll(".v-btn");
+        btns.forEach((b) => b.classList.remove("bg-blue-600", "text-white"));
+        event.target.classList.add("bg-blue-600", "text-white");
+
+        if (cat === "Semua") {
+          renderVault(exerciseLibrary);
+        } else {
+          renderVault(exerciseLibrary.filter((e) => e.cat === cat));
+        }
+      }
+
+      function updateGlobalProgress() {
+        const coreTasksCount = weeklyData.reduce(
+          (acc, curr) => acc + curr.tasks.length,
+          0,
+        );
+        const customTasksCount = Object.values(customTasks).reduce(
+          (acc, curr) => acc + curr.length,
+          0,
+        );
+        const totalTasks = coreTasksCount + customTasksCount;
+
+        const done = completedIds.length;
+        const percentage = totalTasks > 0 ? (done / totalTasks) * 100 : 0;
+        document.getElementById("global-progress-bar").style.width =
+          percentage + "%";
+      }
+
+      // Close modal when clicking outside
+      window.onclick = function (event) {
+        const modal = document.getElementById("exercise-modal");
+        if (event.target == modal) closeModal();
+      };
+
+      window.onload = init;
+    </script>
+  </body>
+</html>
